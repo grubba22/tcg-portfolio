@@ -36,16 +36,24 @@ jobs:
           RAPIDAPI_KEY: ${{ secrets.RAPIDAPI_KEY }}
         run: python sync/tcggo_sync.py --update
 
-      - name: History-Backfill ausführen (Karten >10€, bis Limit)
+      - name: DB nach Update committen (Preise sofort verfügbar)
+        if: ${{ github.event.inputs.mode != 'history' }}
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add sync/tcggo.db
+          git diff --staged --quiet || git commit -m "chore: Preise $(date +'%Y-%m-%d')" && git push
+
+      - name: History-Backfill ausführen (Karten >5€, bis Limit)
         if: ${{ github.event.inputs.mode != 'update' }}
         env:
           RAPIDAPI_KEY: ${{ secrets.RAPIDAPI_KEY }}
         run: python sync/tcggo_sync.py --history --min-price=5.0 --days=365
 
-      - name: Datenbank committen
+      - name: DB nach History-Backfill committen
+        if: ${{ always() && github.event.inputs.mode != 'update' }}
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add sync/tcggo.db
-          git diff --staged --quiet || git commit -m "chore: DB Update $(date +'%Y-%m-%d')"
-          git push
+          git diff --staged --quiet || git commit -m "chore: History $(date +'%Y-%m-%d')" && git push

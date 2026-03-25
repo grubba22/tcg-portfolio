@@ -251,8 +251,7 @@ def api_get(endpoint: str, params: dict = {}) -> dict | None:
     except requests.exceptions.HTTPError as e:
         log(f"  HTTP Fehler {r.status_code} bei {endpoint} params={params}: {e}")
         if r.status_code == 429:
-            log("  Rate-Limit! Warte 10 Sekunden...")
-            time.sleep(10)
+            raise RuntimeError("API Rate-Limit 429: Tageskontingent erschöpft.")
         return None
     except requests.exceptions.RequestException as e:
         log(f"  Request Fehler bei {endpoint}: {e}")
