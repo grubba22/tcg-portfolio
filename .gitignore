@@ -41,8 +41,8 @@ sync/launchd_stderr.log
 *.db-shm
 *.db-wal
 
-# Root-Level DB (Kopie, nur sync/tcggo.db ist kanonisch)
-tcggo.db
+# Root-Level DB-Kopien ignorieren, sync/tcggo.db ist kanonisch
+/tcggo.db
 
 # Python
 __pycache__/
