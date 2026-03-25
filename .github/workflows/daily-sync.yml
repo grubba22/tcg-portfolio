@@ -5,7 +5,11 @@ on:
     # Jeden Tag um 06:00 UTC (= 07:00 / 08:00 MEZ/MESZ)
     - cron: "0 6 * * *"
   workflow_dispatch:
-    # Manueller Start über GitHub UI jederzeit möglich
+    inputs:
+      mode:
+        description: "Modus: update | history | both"
+        required: false
+        default: "both"
 
 jobs:
   sync:
@@ -29,12 +33,17 @@ jobs:
           sed -i "s|\"X-RapidAPI-Key\":.*\".*\"|\"X-RapidAPI-Key\": \"${{ secrets.RAPIDAPI_KEY }}\"|" sync/tcggo_sync.py
 
       - name: Preis-Update ausführen
+        if: ${{ github.event.inputs.mode != 'history' }}
         run: python sync/tcggo_sync.py --update
+
+      - name: History-Backfill ausführen (Karten >10€, bis Limit)
+        if: ${{ github.event.inputs.mode != 'update' }}
+        run: python sync/tcggo_sync.py --history --min-price=10.0 --days=365
 
       - name: Datenbank committen
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add sync/tcggo.db
-          git diff --staged --quiet || git commit -m "chore: tägliches Preis-Update $(date +'%Y-%m-%d')"
+          git diff --staged --quiet || git commit -m "chore: DB Update $(date +'%Y-%m-%d')"
           git push

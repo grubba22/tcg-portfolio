@@ -494,6 +494,96 @@ def update_episode_cards(conn: sqlite3.Connection, ep_id: int, ep_name: str,
 
 
 # ─────────────────────────────────────────────────────────────
+# PREIS-HISTORY BACKFILL
+# ─────────────────────────────────────────────────────────────
+def fetch_history_prices(cardmarket_id: int, date_from: str, date_to: str) -> list[dict]:
+    """Ruft historische Preise für eine Karte ab. Gibt Liste von {date, cm_low, tcp_market} zurück."""
+    data = api_get("pokemon/history-prices", {
+        "id":        cardmarket_id,
+        "date_from": date_from,
+        "date_to":   date_to,
+    })
+    if not data:
+        return []
+    items = data if isinstance(data, list) else data.get("data", [])
+    result = []
+    for item in items:
+        date     = item.get("date") or item.get("created_at", "")[:10]
+        cm_low   = (item.get("cardmarket") or {}).get("lowest_near_mint") \
+                   or item.get("cm_low") or item.get("lowest_near_mint")
+        tcp_mkt  = (item.get("tcg_player") or {}).get("market_price") \
+                   or item.get("tcp_market") or item.get("market_price")
+        if date:
+            result.append({"date": date, "cm_low": cm_low, "tcp_market": tcp_mkt})
+    return result
+
+
+def run_history(min_price: float = 10.0, days_back: int = 365):
+    """
+    Lädt historische Preise für alle Karten mit Preis > min_price.
+    Nutzt verbleibende Requests nach dem täglichen Update.
+    Karten die bereits History haben werden übersprungen.
+    Macht dort weiter wo der letzte Lauf aufgehört hat.
+    """
+    log("=" * 60)
+    log(f"PREIS-HISTORY Backfill (min. {min_price}€, {days_back} Tage)")
+    log(f"DB: {DB_PATH}")
+    log("=" * 60)
+
+    conn = sqlite3.connect(DB_PATH)
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA synchronous=NORMAL")
+    setup_db(conn)
+
+    date_to   = datetime.now().strftime("%Y-%m-%d")
+    date_from = (datetime.now() - timedelta(days=days_back)).strftime("%Y-%m-%d")
+
+    # Alle Karten mit Preis > min_price, die noch keine History-Einträge haben
+    candidates = conn.execute("""
+        SELECT c.cardmarket_id, c.name, c.cm_lowest_nm_de, c.cm_lowest_nm
+        FROM cards c
+        WHERE c.cardmarket_id IS NOT NULL
+          AND COALESCE(c.cm_lowest_nm_de, c.cm_lowest_nm, 0) >= ?
+          AND NOT EXISTS (
+              SELECT 1 FROM price_history ph
+              WHERE ph.cardmarket_id = c.cardmarket_id
+          )
+        ORDER BY COALESCE(c.cm_lowest_nm_de, c.cm_lowest_nm, 0) DESC
+    """, (min_price,)).fetchall()
+
+    log(f"→ {len(candidates)} Karten ohne History (>{min_price}€)")
+
+    if not candidates:
+        log("Nichts zu tun.")
+        conn.close()
+        return
+
+    done = 0
+    for cardmarket_id, name, price_de, price_global in candidates:
+        price_display = price_de or price_global or 0
+        log(f"  [{done+1:>4}/{len(candidates)}] {name} ({price_display:.2f}€) – cm_id={cardmarket_id}")
+
+        try:
+            entries = fetch_history_prices(cardmarket_id, date_from, date_to)
+        except RuntimeError as e:
+            log(f"\n!!! LIMIT erreicht nach {done} Karten: {e}")
+            break
+
+        saved = 0
+        for entry in entries:
+            save_price_history(conn, cardmarket_id,
+                               entry["cm_low"], entry["tcp_market"], entry["date"])
+            saved += 1
+
+        conn.commit()
+        log(f"         → {saved} Einträge gespeichert ({date_from} – {date_to})")
+        done += 1
+
+    conn.close()
+    log(f"\nHistory Backfill abgeschlossen: {done} Karten verarbeitet")
+
+
+# ─────────────────────────────────────────────────────────────
 # TÄGLICHES UPDATE
 # ─────────────────────────────────────────────────────────────
 def run_update():
@@ -702,5 +792,15 @@ if __name__ == "__main__":
         exit(1)
     if "--update" in sys.argv:
         run_update()
+    elif "--history" in sys.argv:
+        # Optional: --min-price=15.0  --days=180
+        min_price = 10.0
+        days_back = 365
+        for arg in sys.argv:
+            if arg.startswith("--min-price="):
+                min_price = float(arg.split("=")[1])
+            if arg.startswith("--days="):
+                days_back = int(arg.split("=")[1])
+        run_history(min_price=min_price, days_back=days_back)
     else:
         run_sync()
