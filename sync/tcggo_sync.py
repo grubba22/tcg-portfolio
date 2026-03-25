@@ -443,16 +443,16 @@ def upsert_product(conn: sqlite3.Connection, product: dict):
 # ─────────────────────────────────────────────────────────────
 # PREIS-HISTORY
 # ─────────────────────────────────────────────────────────────
-def save_price_history(conn: sqlite3.Connection, cardmarket_id: int,
+def save_price_history(conn: sqlite3.Connection, card_id: int,
                        cm_low: float | None, tcp_market: float | None,
                        date_str: str):
     """Speichert Preis in price_history (einmal pro Tag per INSERT OR IGNORE)."""
-    if cardmarket_id is None:
+    if card_id is None:
         return
     conn.execute("""
         INSERT OR IGNORE INTO price_history (cardmarket_id, date, cm_low, tcp_market)
         VALUES (?, ?, ?, ?)
-    """, (cardmarket_id, date_str, cm_low, tcp_market))
+    """, (card_id, date_str, cm_low, tcp_market))
 
 
 def update_episode_cards(conn: sqlite3.Connection, ep_id: int, ep_name: str,
@@ -465,7 +465,7 @@ def update_episode_cards(conn: sqlite3.Connection, ep_id: int, ep_name: str,
     # ── Karten ──────────────────────────────────────────────
     cards = fetch_all_pages(f"pokemon/episodes/{ep_id}/cards")
     for card in cards:
-        cardmarket_id = card.get("cardmarket_id")
+        card_id = card.get("id")
         prices = card.get("prices") or {}
         cm  = prices.get("cardmarket") or {}
         tcp = prices.get("tcg_player") or {}
@@ -475,11 +475,11 @@ def update_episode_cards(conn: sqlite3.Connection, ep_id: int, ep_name: str,
 
         # Alten Preis aus DB holen und in History sichern (vor Überschreiben)
         old = conn.execute(
-            "SELECT cm_lowest_nm, tcp_market FROM cards WHERE cardmarket_id = ?",
-            (cardmarket_id,)
+            "SELECT cm_lowest_nm, tcp_market FROM cards WHERE id = ?",
+            (card_id,)
         ).fetchone()
-        if old and cardmarket_id:
-            save_price_history(conn, cardmarket_id, old[0], old[1], date_str)
+        if old and card_id:
+            save_price_history(conn, card_id, old[0], old[1], date_str)
 
         upsert_artist(conn, card.get("artist"))
         upsert_card(conn, card)
@@ -496,25 +496,31 @@ def update_episode_cards(conn: sqlite3.Connection, ep_id: int, ep_name: str,
 # ─────────────────────────────────────────────────────────────
 # PREIS-HISTORY BACKFILL
 # ─────────────────────────────────────────────────────────────
-def fetch_history_prices(cardmarket_id: int, date_from: str, date_to: str) -> list[dict]:
-    """Ruft historische Preise für eine Karte ab. Gibt Liste von {date, cm_low, tcp_market} zurück."""
+def fetch_history_prices(card_id: int, date_from: str, date_to: str) -> list[dict]:
+    """
+    Ruft historische Preise für eine Karte ab (interne Card-ID).
+    Response-Format: {"data": {"YYYY-MM-DD": {"cm_low": X, "tcg_player_market": Y}, ...}}
+    Gibt Liste von {date, cm_low, tcp_market} zurück.
+    """
     data = api_get("pokemon/history-prices", {
-        "id":        cardmarket_id,
+        "id":        card_id,
         "date_from": date_from,
         "date_to":   date_to,
     })
     if not data:
         return []
-    items = data if isinstance(data, list) else data.get("data", [])
+    raw = data.get("data", {})
+    if not isinstance(raw, dict):
+        return []
     result = []
-    for item in items:
-        date     = item.get("date") or item.get("created_at", "")[:10]
-        cm_low   = (item.get("cardmarket") or {}).get("lowest_near_mint") \
-                   or item.get("cm_low") or item.get("lowest_near_mint")
-        tcp_mkt  = (item.get("tcg_player") or {}).get("market_price") \
-                   or item.get("tcp_market") or item.get("market_price")
-        if date:
-            result.append({"date": date, "cm_low": cm_low, "tcp_market": tcp_mkt})
+    for date_str, values in raw.items():
+        if not isinstance(values, dict):
+            continue
+        result.append({
+            "date":       date_str,
+            "cm_low":     values.get("cm_low"),
+            "tcp_market": values.get("tcg_player_market"),
+        })
     return result
 
 
@@ -540,13 +546,12 @@ def run_history(min_price: float = 10.0, days_back: int = 365):
 
     # Alle Karten mit Preis > min_price, die noch keine History-Einträge haben
     candidates = conn.execute("""
-        SELECT c.cardmarket_id, c.name, c.cm_lowest_nm_de, c.cm_lowest_nm
+        SELECT c.id, c.name, c.cm_lowest_nm_de, c.cm_lowest_nm
         FROM cards c
-        WHERE c.cardmarket_id IS NOT NULL
-          AND COALESCE(c.cm_lowest_nm_de, c.cm_lowest_nm, 0) >= ?
+        WHERE COALESCE(c.cm_lowest_nm_de, c.cm_lowest_nm, 0) >= ?
           AND NOT EXISTS (
               SELECT 1 FROM price_history ph
-              WHERE ph.cardmarket_id = c.cardmarket_id
+              WHERE ph.cardmarket_id = c.id
           )
         ORDER BY COALESCE(c.cm_lowest_nm_de, c.cm_lowest_nm, 0) DESC
     """, (min_price,)).fetchall()
@@ -559,19 +564,19 @@ def run_history(min_price: float = 10.0, days_back: int = 365):
         return
 
     done = 0
-    for cardmarket_id, name, price_de, price_global in candidates:
+    for card_id, name, price_de, price_global in candidates:
         price_display = price_de or price_global or 0
-        log(f"  [{done+1:>4}/{len(candidates)}] {name} ({price_display:.2f}€) – cm_id={cardmarket_id}")
+        log(f"  [{done+1:>4}/{len(candidates)}] {name} ({price_display:.2f}€) – id={card_id}")
 
         try:
-            entries = fetch_history_prices(cardmarket_id, date_from, date_to)
+            entries = fetch_history_prices(card_id, date_from, date_to)
         except RuntimeError as e:
             log(f"\n!!! LIMIT erreicht nach {done} Karten: {e}")
             break
 
         saved = 0
         for entry in entries:
-            save_price_history(conn, cardmarket_id,
+            save_price_history(conn, card_id,
                                entry["cm_low"], entry["tcp_market"], entry["date"])
             saved += 1
 
