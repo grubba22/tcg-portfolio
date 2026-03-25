@@ -37,7 +37,7 @@ jobs:
         if: ${{ github.event.inputs.mode != 'update' }}
         env:
           RAPIDAPI_KEY: ${{ secrets.RAPIDAPI_KEY }}
-        run: python sync/tcggo_sync.py --history --min-price=10.0 --days=365
+        run: python sync/tcggo_sync.py --history --min-price=5.0 --days=365
 
       - name: Datenbank committen
         run: |

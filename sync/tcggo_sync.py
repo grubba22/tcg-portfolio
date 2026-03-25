@@ -498,29 +498,38 @@ def update_episode_cards(conn: sqlite3.Connection, ep_id: int, ep_name: str,
 # ─────────────────────────────────────────────────────────────
 def fetch_history_prices(card_id: int, date_from: str, date_to: str) -> list[dict]:
     """
-    Ruft historische Preise für eine Karte ab (interne Card-ID).
+    Ruft historische Preise für eine Karte ab (interne Card-ID), alle Seiten.
+    API gibt 30 Einträge pro Seite → bei 365 Tagen ~13 Requests pro Karte.
     Response-Format: {"data": {"YYYY-MM-DD": {"cm_low": X, "tcg_player_market": Y}, ...}}
     Gibt Liste von {date, cm_low, tcp_market} zurück.
     """
-    data = api_get("pokemon/history-prices", {
-        "id":        card_id,
-        "date_from": date_from,
-        "date_to":   date_to,
-    })
-    if not data:
-        return []
-    raw = data.get("data", {})
-    if not isinstance(raw, dict):
-        return []
     result = []
-    for date_str, values in raw.items():
-        if not isinstance(values, dict):
-            continue
-        result.append({
-            "date":       date_str,
-            "cm_low":     values.get("cm_low"),
-            "tcp_market": values.get("tcg_player_market"),
+    page = 1
+    while True:
+        data = api_get("pokemon/history-prices", {
+            "id":        card_id,
+            "date_from": date_from,
+            "date_to":   date_to,
+            "page":      page,
         })
+        if not data:
+            break
+        raw = data.get("data", {})
+        if not isinstance(raw, dict) or not raw:
+            break
+        for date_str, values in raw.items():
+            if not isinstance(values, dict):
+                continue
+            result.append({
+                "date":       date_str,
+                "cm_low":     values.get("cm_low"),
+                "tcp_market": values.get("tcg_player_market"),
+            })
+        paging      = data.get("paging", {})
+        total_pages = paging.get("total", 1)
+        if page >= total_pages:
+            break
+        page += 1
     return result
 
 
