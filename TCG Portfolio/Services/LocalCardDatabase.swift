@@ -130,6 +130,16 @@ final class LocalCardDatabase {
         }
     }
 
+    /// Schließt und öffnet die DB neu – wird nach einem Update aufgerufen.
+    func reload() {
+        if db != nil {
+            sqlite3_close(db)
+            db = nil
+        }
+        openDatabase()
+        print("[LocalCardDatabase] 🔄 Neu geladen")
+    }
+
     // MARK: - Search Cards
 
     func searchCards(query: String) -> [CardSearchResult] {

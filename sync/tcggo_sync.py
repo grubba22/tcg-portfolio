@@ -31,10 +31,10 @@ from pathlib import Path
 # ─────────────────────────────────────────────────────────────
 # KONFIGURATION
 # ─────────────────────────────────────────────────────────────
-RAPIDAPI_KEY          = "973b910ce3msh50f372c62250143p1a6f6fjsnb7339db14509"
+RAPIDAPI_KEY          = os.environ.get("RAPIDAPI_KEY", "")
 BASE_URL              = "https://cardmarket-api-tcg.p.rapidapi.com"
 HEADERS               = {
-    "X-RapidAPI-Key":  "973b910ce3msh50f372c62250143p1a6f6fjsnb7339db14509",
+    "X-RapidAPI-Key":  RAPIDAPI_KEY,
     "X-RapidAPI-Host": "cardmarket-api-tcg.p.rapidapi.com"
 }
 
@@ -787,8 +787,10 @@ def _write_sync_log(conn, started_at, episodes, artists,
 # START
 # ─────────────────────────────────────────────────────────────
 if __name__ == "__main__":
-    if RAPIDAPI_KEY == "DEIN_RAPIDAPI_KEY_HIER":
-        print("FEHLER: Bitte erst den RAPIDAPI_KEY in Zeile 24 eintragen!")
+    if not RAPIDAPI_KEY:
+        print("FEHLER: Umgebungsvariable RAPIDAPI_KEY nicht gesetzt!")
+        print("  Lokal: export RAPIDAPI_KEY=dein_key")
+        print("  GitHub: Als Secret 'RAPIDAPI_KEY' hinterlegen")
         exit(1)
     if "--update" in sys.argv:
         run_update()

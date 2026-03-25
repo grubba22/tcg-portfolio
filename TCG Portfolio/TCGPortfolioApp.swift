@@ -14,6 +14,9 @@ struct TCGPortfolioApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView()
+                .task {
+                    await DatabaseUpdateService.shared.updateIfNeeded()
+                }
         }
         .modelContainer(container)
     }

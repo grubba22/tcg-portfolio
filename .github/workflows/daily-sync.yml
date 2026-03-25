@@ -27,17 +27,16 @@ jobs:
       - name: Abhängigkeiten installieren
         run: pip install requests
 
-      - name: API-Key setzen
-        run: |
-          sed -i "s|RAPIDAPI_KEY.*=.*\".*\"|RAPIDAPI_KEY = \"${{ secrets.RAPIDAPI_KEY }}\"|" sync/tcggo_sync.py
-          sed -i "s|\"X-RapidAPI-Key\":.*\".*\"|\"X-RapidAPI-Key\": \"${{ secrets.RAPIDAPI_KEY }}\"|" sync/tcggo_sync.py
-
       - name: Preis-Update ausführen
         if: ${{ github.event.inputs.mode != 'history' }}
+        env:
+          RAPIDAPI_KEY: ${{ secrets.RAPIDAPI_KEY }}
         run: python sync/tcggo_sync.py --update
 
       - name: History-Backfill ausführen (Karten >10€, bis Limit)
         if: ${{ github.event.inputs.mode != 'update' }}
+        env:
+          RAPIDAPI_KEY: ${{ secrets.RAPIDAPI_KEY }}
         run: python sync/tcggo_sync.py --history --min-price=10.0 --days=365
 
       - name: Datenbank committen
