@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(mkdir -p \"/Users/Robin/Desktop/Neuer Ordner/TCG Portfolio/TCG Portfolio\" && cp -r \"/Users/Robin/Desktop/Neuer Ordner/TCG Portfolio/TCGPortfolio/\"* \"/Users/Robin/Desktop/Neuer Ordner/TCG Portfolio/TCG Portfolio/\" && rm -rf \"/Users/Robin/Desktop/Neuer Ordner/TCG Portfolio/TCGPortfolio\")",
+      "Bash(cd:*)",
+      "Bash(sqlite3:*)",
+      "Bash(gh auth:*)"
+    ]
+  }
+}

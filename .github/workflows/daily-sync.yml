@@ -1,0 +1,40 @@
+name: Tägliches Preis-Update
+
+on:
+  schedule:
+    # Jeden Tag um 06:00 UTC (= 07:00 / 08:00 MEZ/MESZ)
+    - cron: "0 6 * * *"
+  workflow_dispatch:
+    # Manueller Start über GitHub UI jederzeit möglich
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Python einrichten
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Abhängigkeiten installieren
+        run: pip install requests
+
+      - name: API-Key setzen
+        run: |
+          sed -i "s|RAPIDAPI_KEY.*=.*\".*\"|RAPIDAPI_KEY = \"${{ secrets.RAPIDAPI_KEY }}\"|" sync/tcggo_sync.py
+          sed -i "s|\"X-RapidAPI-Key\":.*\".*\"|\"X-RapidAPI-Key\": \"${{ secrets.RAPIDAPI_KEY }}\"|" sync/tcggo_sync.py
+
+      - name: Preis-Update ausführen
+        run: python sync/tcggo_sync.py --update
+
+      - name: Datenbank committen
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add sync/tcggo.db
+          git diff --staged --quiet || git commit -m "chore: tägliches Preis-Update $(date +'%Y-%m-%d')"
+          git push

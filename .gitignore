@@ -1,0 +1,50 @@
+# Xcode
+*.xcuserstate
+xcuserdata/
+*.xcworkspace/xcuserdata/
+DerivedData/
+*.hmap
+*.ipa
+*.dSYM.zip
+*.dSYM
+build/
+*.moved-aside
+*.pbxuser
+!default.pbxuser
+*.mode1v3
+!default.mode1v3
+*.mode2v3
+!default.mode2v3
+*.perspectivev3
+!default.perspectivev3
+
+# SwiftData / CoreData
+*.sqlite-shm
+*.sqlite-wal
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon?
+._*
+.Spotlight-V100
+.Trashes
+
+# Sync-Logs (lokal, nicht ins Repo)
+sync/tcggo_sync.log
+sync/request_count.json
+sync/launchd_stdout.log
+sync/launchd_stderr.log
+
+# DB-WAL/SHM Dateien (temporär)
+*.db-shm
+*.db-wal
+
+# Root-Level DB (Kopie, nur sync/tcggo.db ist kanonisch)
+tcggo.db
+
+# Python
+__pycache__/
+*.pyc
+.env
