@@ -814,17 +814,20 @@ if __name__ == "__main__":
         print("  Lokal: export RAPIDAPI_KEY=dein_key")
         print("  GitHub: Als Secret 'RAPIDAPI_KEY' hinterlegen")
         exit(1)
-    if "--update" in sys.argv:
-        run_update()
-    elif "--history" in sys.argv:
-        # Optional: --min-price=15.0  --days=180
-        min_price = 10.0
-        days_back = 365
-        for arg in sys.argv:
-            if arg.startswith("--min-price="):
-                min_price = float(arg.split("=")[1])
-            if arg.startswith("--days="):
-                days_back = int(arg.split("=")[1])
-        run_history(min_price=min_price, days_back=days_back)
-    else:
-        run_sync()
+    try:
+        if "--update" in sys.argv:
+            run_update()
+        elif "--history" in sys.argv:
+            min_price = 10.0
+            days_back = 365
+            for arg in sys.argv:
+                if arg.startswith("--min-price="):
+                    min_price = float(arg.split("=")[1])
+                if arg.startswith("--days="):
+                    days_back = int(arg.split("=")[1])
+            run_history(min_price=min_price, days_back=days_back)
+        else:
+            run_sync()
+    except Exception as e:
+        log(f"\n!!! UNERWARTETER FEHLER – breche ab: {e}")
+    sys.exit(0)

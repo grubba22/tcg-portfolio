@@ -35,7 +35,7 @@ jobs:
         run: python sync/tcggo_sync.py --update
 
       - name: DB nach Update committen (Preise sofort verfügbar)
-        if: ${{ github.event.inputs.mode != 'history' }}
+        if: ${{ always() && github.event.inputs.mode != 'history' }}
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
