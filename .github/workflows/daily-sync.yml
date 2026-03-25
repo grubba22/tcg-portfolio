@@ -1,9 +1,10 @@
 name: Tägliches Preis-Update
 
 on:
-  schedule:
-    # Jeden Tag um 06:00 UTC (= 07:00 / 08:00 MEZ/MESZ)
-    - cron: "0 6 * * *"
+  # Cron temporär deaktiviert – manueller Start via workflow_dispatch
+  # Reaktivieren: schedule wieder einkommentieren
+  # schedule:
+  #   - cron: "0 6 * * *"
   workflow_dispatch:
     inputs:
       mode:
