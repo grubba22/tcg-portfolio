@@ -554,15 +554,18 @@ def run_history(min_price: float = 10.0, days_back: int = 365):
     date_from = (datetime.now() - timedelta(days=days_back)).strftime("%Y-%m-%d")
 
     # Alle Karten mit Preis > min_price, die noch keine History-Einträge haben
+    # Sortierung: neueste Sets zuerst, innerhalb eines Sets nach Preis absteigend
     candidates = conn.execute("""
         SELECT c.id, c.name, c.cm_lowest_nm_de, c.cm_lowest_nm
         FROM cards c
+        JOIN episodes e ON c.episode_id = e.id
         WHERE COALESCE(c.cm_lowest_nm_de, c.cm_lowest_nm, 0) >= ?
           AND NOT EXISTS (
               SELECT 1 FROM price_history ph
               WHERE ph.cardmarket_id = c.id
           )
-        ORDER BY COALESCE(c.cm_lowest_nm_de, c.cm_lowest_nm, 0) DESC
+        ORDER BY e.released_at DESC,
+                 COALESCE(c.cm_lowest_nm_de, c.cm_lowest_nm, 0) DESC
     """, (min_price,)).fetchall()
 
     log(f"→ {len(candidates)} Karten ohne History (>{min_price}€)")
