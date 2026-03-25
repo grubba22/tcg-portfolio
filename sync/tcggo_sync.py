@@ -553,7 +553,9 @@ def run_history(min_price: float = 10.0, days_back: int = 365):
     date_to   = datetime.now().strftime("%Y-%m-%d")
     date_from = (datetime.now() - timedelta(days=days_back)).strftime("%Y-%m-%d")
 
-    # Alle Karten mit Preis > min_price, die noch keine History-Einträge haben
+    # Alle Karten mit Preis > min_price, die noch keinen Backfill haben.
+    # "Backfill vorhanden" = mindestens ein Eintrag älter als 7 Tage.
+    # Karten die nur durch --update einen heutigen Eintrag haben, werden so korrekt erfasst.
     # Sortierung: neueste Sets zuerst, innerhalb eines Sets nach Preis absteigend
     candidates = conn.execute("""
         SELECT c.id, c.name, c.cm_lowest_nm_de, c.cm_lowest_nm
@@ -563,12 +565,16 @@ def run_history(min_price: float = 10.0, days_back: int = 365):
           AND NOT EXISTS (
               SELECT 1 FROM price_history ph
               WHERE ph.cardmarket_id = c.id
+                AND ph.date < date('now', '-7 days')
           )
         ORDER BY e.released_at DESC,
                  COALESCE(c.cm_lowest_nm_de, c.cm_lowest_nm, 0) DESC
     """, (min_price,)).fetchall()
 
-    log(f"→ {len(candidates)} Karten ohne History (>{min_price}€)")
+    remaining = MAX_REQUESTS_PER_24H - requests_used()
+    cards_possible = remaining // 13  # ~13 Requests pro Karte (365 Tage ÷ 30 per_page)
+    log(f"→ {len(candidates)} Karten ohne Backfill (>{min_price}€)")
+    log(f"→ Verbleibende Requests: {remaining} → ca. {cards_possible} Karten heute möglich")
 
     if not candidates:
         log("Nichts zu tun.")
